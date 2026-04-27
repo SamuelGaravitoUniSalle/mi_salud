@@ -1,0 +1,419 @@
+Table "misalud"."tipo_documento" {
+  "id_tipo_documento" int4 [pk, not null, increment]
+  "codigo" varchar(5) [unique, not null, note: 'Código del tipo de documento: CC, CE, TI, PA, RC, PE, MS, AS, CD']
+  "descripcion" varchar(100) [not null, note: 'Ej: Cédula de Ciudadanía, Pasaporte']
+  "activo" bool [not null, default: true]
+  Note: 'TABLA MAESTRA - Valores fijos según normativa RNEC (CC, CE, TI, PA, RC, PE, MS, AS, CD).'
+}
+
+Table "misalud"."departamento" {
+  "id_departamento" int4 [pk, not null, increment]
+  "codigo_dane" bpchar(2) [unique, not null, note: 'Código DANE 2 dígitos. Ej: 11 (Bogotá), 05 (Antioquia)']
+  "nombre" varchar(100) [not null]
+  "activo" bool [not null, default: true]
+
+  Indexes {
+    codigo_dane [type: btree, name: "idx_depto_dane"]
+  }
+  Note: 'TABLA MAESTRA - DIVIPOLA (DANE). 33 registros base para Colombia.'
+}
+
+Table "misalud"."municipio" {
+  "id_municipio" int4 [pk, not null, increment]
+  "codigo_dane" bpchar(5) [unique, not null, note: 'DIVIPOLA 5 dígitos = 2 depto + 3 municipio. Ej: 11001 (Bogotá)']
+  "nombre" varchar(100) [not null]
+  "id_departamento" int4 [not null]
+  "categoria_municipio" varchar(10) [check: `(categoria_municipio IS NULL) OR ((categoria_municipio)::text = ANY ((ARRAY['ESPECIAL'::character varying, '1'::character varying, '2'::character varying, '3'::character varying, '4'::character varying, '5'::character varying, '6'::character varying])::text[]))`, note: 'Categoría municipal según Ley 617/2000']
+  "zona" varchar(10) [check: `(zona IS NULL) OR ((zona)::text = ANY ((ARRAY['URBANA'::character varying, 'RURAL'::character varying, 'MIXTA'::character varying])::text[]))`]
+  "activo" bool [not null, default: true]
+
+  Indexes {
+    codigo_dane [type: btree, name: "idx_mun_dane"]
+    id_departamento [type: btree, name: "idx_mun_depto"]
+  }
+  Note: 'TABLA MAESTRA - DIVIPOLA (DANE). ~1.122 municipios.'
+}
+
+Table "misalud"."especialidad" {
+  "id_especialidad" int4 [pk, not null, increment]
+  "nombre" varchar(150) [not null]
+  "descripcion" varchar(500)
+  "requiere_remision" bool [not null, default: true, note: 'TRUE/FALSE. Medicina General = FALSE']
+  "nivel_complejidad" int4 [not null, check: `nivel_complejidad = ANY (ARRAY[1, 2, 3, 4])`, default: 1, note: 'Niveles de atención 1=básico a 4=alta complejidad']
+  "activo" bool [not null, default: true]
+  "fecha_creacion" date [not null, default: `CURRENT_DATE`]
+
+  Indexes {
+    nombre [type: btree, name: "idx_esp_nombre"]
+  }
+  Note: 'TABLA MAESTRA - Resolución 3100/2019 MSPS.'
+}
+
+Table "misalud"."regimen" {
+  "id_regimen" int4 [pk, not null, increment]
+  "codigo" varchar(5) [unique, not null, note: 'CNT (Contributivo), SBS (Subsidiado)']
+  "nombre" varchar(100) [not null]
+  "descripcion" varchar(500)
+  "fuente_financiamiento" varchar(200) [note: 'Ej: PILA, Presupuesto Nacional, SISBEN IV, Fuerzas Militares']
+  "requiere_cotizacion" bool [not null, default: false]
+  "activo" bool [not null, default: true]
+  Note: 'TABLA MAESTRA - Regímenes del SGSSS (Ley 100/1993).'
+}
+
+Table "misalud"."eps" {
+  "id_eps" int4 [pk, not null, increment]
+  "codigo_habilitacion" varchar(12) [unique, not null, note: 'Código Superintendencia Nacional de Salud']
+  "nit" varchar(15) [unique, not null, note: 'NIT sin dígito de verificación']
+  "razon_social" varchar(200) [not null]
+  "tipo_eps" varchar(10) [not null, check: `(tipo_eps)::text = ANY ((ARRAY['PUBLICA'::character varying, 'PRIVADA'::character varying, 'MIXTA'::character varying])::text[])`]
+  "estado" varchar(15) [not null, check: `(estado)::text = ANY ((ARRAY['ACTIVA'::character varying, 'INTERVENIDA'::character varying, 'LIQUIDACION'::character varying, 'LIQUIDADA'::character varying])::text[])`, default: 'ACTIVA']
+  "nivel_endeudamiento" varchar(10) [check: `(nivel_endeudamiento IS NULL) OR ((nivel_endeudamiento)::text = ANY ((ARRAY['ALTO'::character varying, 'MEDIO'::character varying, 'BAJO'::character varying, 'NA'::character varying])::text[]))`, note: 'Clasificación Supersalud para priorizar intervenciones']
+  "total_afiliados" int4 [check: `total_afiliados >= 0`, default: 0]
+  "telefono_contacto" varchar(20)
+  "correo_contacto" varchar(150)
+  "fecha_inicio_migracion" date
+  "fecha_fin_migracion" date
+  "activo" bool [not null, default: true]
+  "fecha_creacion" date [not null, default: `CURRENT_DATE`]
+  "usuario_creacion" varchar(50) [not null]
+
+  Checks {
+    `(fecha_fin_migracion IS NULL) OR (fecha_inicio_migracion IS NULL) OR (fecha_fin_migracion >= fecha_inicio_migracion)` [name: 'ck_eps_fechas_migr']
+  }
+
+  Indexes {
+    codigo_habilitacion [type: btree, name: "idx_eps_cod"]
+    estado [type: btree, name: "idx_eps_estado"]
+    nit [type: btree, name: "idx_eps_nit"]
+  }
+  Note: 'Hasta 46 EPS activas. Origen del proceso ETL hacia MiSalud.'
+}
+
+Table "misalud"."ips" {
+  "id_ips" int4 [pk, not null, increment]
+  "codigo_habilitacion" varchar(12) [unique, not null, note: 'Código REPS (Registro Especial de Prestadores de Salud)']
+  "nit" varchar(15) [unique, not null]
+  "razon_social" varchar(200) [not null]
+  "tipo_ips" varchar(10) [not null, check: `(tipo_ips)::text = ANY ((ARRAY['PUBLICA'::character varying, 'PRIVADA'::character varying, 'MIXTA'::character varying])::text[])`]
+  "nivel_atencion" int4 [not null, check: `nivel_atencion = ANY (ARRAY[1, 2, 3, 4])`, note: '1=básico, 4=alta complejidad - Resolución 3100/2019']
+  "id_municipio" int4 [not null]
+  "direccion" varchar(300) [not null]
+  "telefono_contacto" varchar(20)
+  "correo_contacto" varchar(150)
+  "capacidad_camas" int4 [check: `capacidad_camas >= 0`, default: 0]
+  "capacidad_uci" int4 [check: `capacidad_uci >= 0`, default: 0]
+  "estado" varchar(15) [not null, check: `(estado)::text = ANY ((ARRAY['ACTIVA'::character varying, 'SUSPENDIDA'::character varying, 'INACTIVA'::character varying])::text[])`, default: 'ACTIVA']
+  "activo" bool [not null, default: true]
+  "fecha_habilitacion" date [not null, note: 'Fecha de habilitación oficial ante Supersalud / REPS']
+  "fecha_creacion" date [not null, default: `CURRENT_DATE`]
+  "usuario_creacion" varchar(50) [not null]
+
+  Indexes {
+    codigo_habilitacion [type: btree, name: "idx_ips_cod"]
+    estado [type: btree, name: "idx_ips_estado"]
+    id_municipio [type: btree, name: "idx_ips_municipio"]
+    nit [type: btree, name: "idx_ips_nit"]
+    nivel_atencion [type: btree, name: "idx_ips_nivel"]
+  }
+  Note: '~13.000 IPS habilitadas en Colombia. Receptoras de Giro Directo ADRES.'
+}
+
+Table "misalud"."ips_especialidad" {
+  "id_ips_especialidad" int4 [pk, not null, increment]
+  "id_ips" int4 [not null]
+  "id_especialidad" int4 [not null]
+  "activo" bool [not null, default: true]
+  "fecha_actualizacion" date [not null, default: `CURRENT_DATE`]
+
+  Indexes {
+    (id_ips, id_especialidad) [type: btree, unique, name: "uq_ips_esp"]
+    id_especialidad [type: btree, name: "idx_ipsep_esp"]
+    id_ips [type: btree, name: "idx_ipsep_ips"]
+  }
+  Note: 'Tabla pivote N:M entre Ips y Especialidad.'
+}
+
+Table "misalud"."medico" {
+  "id_medico" int4 [pk, not null, increment]
+  "numero_registro_medico" varchar(20) [unique, not null, note: 'Registro RETHUS - MSPS. Obligatorio y único.']
+  "id_tipo_documento" int4 [not null]
+  "numero_documento" varchar(20) [not null]
+  "primer_nombre" varchar(80) [not null]
+  "segundo_nombre" varchar(80)
+  "primer_apellido" varchar(80) [not null]
+  "segundo_apellido" varchar(80)
+  "correo_institucional" varchar(150) [unique, not null, note: 'Correo MiSalud para notificaciones y autenticación']
+  "telefono" varchar(20)
+  "estado" varchar(15) [not null, check: `(estado)::text = ANY ((ARRAY['ACTIVO'::character varying, 'INACTIVO'::character varying, 'SUSPENDIDO'::character varying])::text[])`, default: 'ACTIVO']
+  "activo" bool [not null, default: true]
+  "fecha_creacion" date [not null, default: `CURRENT_DATE`]
+  "usuario_creacion" varchar(50) [not null]
+
+  Indexes {
+    (id_tipo_documento, numero_documento) [type: btree, unique, name: "uq_med_doc"]
+    estado [type: btree, name: "idx_med_estado"]
+    numero_registro_medico [type: btree, name: "idx_med_rethus"]
+  }
+  Note: 'Integra con RETHUS del MSPS para validación de habilitación profesional.'
+}
+
+Table "misalud"."medico_especialidad" {
+  "id_medico_especialidad" int4 [pk, not null, increment]
+  "id_medico" int4 [unique, not null]
+  "id_especialidad" int4 [not null]
+  "es_principal" bool [not null, default: false]
+  "activo" bool [not null, default: true]
+
+  Indexes {
+    (id_medico, id_especialidad) [type: btree, unique, name: "uq_med_esp"]
+    id_especialidad [type: btree, name: "idx_medesp_esp"]
+    id_medico [type: btree, name: "idx_medesp_med"]
+  }
+  Note: 'Tabla pivote N:M entre Medico y Especialidad. Garantiza 3FN.'
+}
+
+Table "misalud"."horario_medico" {
+  "id_horario" int4 [pk, not null, increment]
+  "id_medico_especialidad" int4 [not null]
+  "id_ips" int4 [not null]
+  "dia_semana" int4 [not null, check: `(dia_semana >= 1) AND (dia_semana <= 7)`, note: '1=Lunes, 7=Domingo']
+  "hora_inicio" varchar(5) [not null, check: `(hora_inicio)::text ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'::text`]
+  "hora_fin" varchar(5) [not null, check: `(hora_fin)::text ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'::text`]
+  "activo" bool [not null, default: true]
+
+  Checks {
+    `(hora_fin)::text > (hora_inicio)::text` [name: 'ck_horario_rango']
+  }
+
+  Indexes {
+    id_ips [type: btree, name: "idx_hor_ips"]
+    id_medico_especialidad [type: btree, name: "idx_hor_medico"]
+  }
+  Note: 'Disponibilidad semanal por médico, IPS y especialidad. Insumo del motor de agendamiento.'
+}
+
+Table "misalud"."usuario" {
+  "id_usuario" int4 [pk, not null, increment]
+  "id_tipo_documento" int4 [not null]
+  "numero_documento" varchar(20) [not null]
+  "primer_nombre" varchar(80) [not null]
+  "segundo_nombre" varchar(80)
+  "primer_apellido" varchar(80) [not null]
+  "segundo_apellido" varchar(80)
+  "fecha_nacimiento" date [not null, check: `fecha_nacimiento <= CURRENT_DATE`]
+  "sexo" bpchar(1) [not null, check: `sexo = ANY (ARRAY['M'::bpchar, 'F'::bpchar, 'I'::bpchar])`, note: 'M, F o I (Indeterminado - Ley 1955/2019)']
+  "correo_electronico" varchar(150) [unique, note: 'Dato sensible - Ley 1581/2012']
+  "telefono_celular" varchar(15)
+  "id_municipio_residencia" int4 [not null]
+  "direccion_residencia" varchar(300) [note: 'Dato sensible - Ley 1581/2012']
+  "id_regimen_actual" int4 [not null]
+  "id_eps_origen" int4 [note: 'EPS de procedencia pre-migración. Trazabilidad ETL.']
+  "codigo_sisben" varchar(20) [note: 'Obligatorio si régimen = SUBSIDIADO. Formato SISBEN IV.']
+  "puntaje_sisben" numeric(5,2) [check: `(puntaje_sisben IS NULL) OR ((puntaje_sisben >= (0)::numeric) AND (puntaje_sisben <= (100)::numeric))`]
+  "estado_afiliacion" varchar(15) [not null, check: `(estado_afiliacion)::text = ANY ((ARRAY['ACTIVO'::character varying, 'SUSPENDIDO'::character varying, 'FALLECIDO'::character varying, 'EMIGRADO'::character varying])::text[])`, default: 'ACTIVO']
+  "fecha_afiliacion_misalud" date [not null, default: `CURRENT_DATE`]
+  "fecha_migracion" date
+  "activo" bool [not null, default: true]
+  "fecha_creacion" date [not null, default: `CURRENT_DATE`]
+  "usuario_creacion" varchar(50) [not null]
+
+  Indexes {
+    (id_tipo_documento, numero_documento) [type: btree, unique, name: "uq_usr_doc"]
+    correo_electronico [type: btree, name: "idx_usr_email"]
+    id_eps_origen [type: btree, name: "idx_usr_eps"]
+    estado_afiliacion [type: btree, name: "idx_usr_estado"]
+    id_municipio_residencia [type: btree, name: "idx_usr_municipio"]
+    fecha_nacimiento [type: btree, name: "idx_usr_nacim"]
+    id_regimen_actual [type: btree, name: "idx_usr_regimen"]
+  }
+  Note: 'ENTIDAD CENTRAL. ~53M registros. Datos personales protegidos por Ley 1581/2012.'
+}
+
+Table "misalud"."procedimiento" {
+  "id_procedimiento" int4 [pk, not null, increment]
+  "codigo_cups" varchar(10) [unique, not null, note: 'Clasificación CUPS - Resolución 3512/2019 MSPS']
+  "nombre" varchar(200) [not null]
+  "descripcion" varchar(1000)
+  "id_especialidad" int4
+  "tipo_procedimiento" varchar(15) [not null, check: `(tipo_procedimiento)::text = ANY ((ARRAY['CONSULTA'::character varying, 'DIAGNOSTICO'::character varying, 'QUIRURGICO'::character varying, 'TERAPEUTICO'::character varying, 'OTRO'::character varying])::text[])`]
+  "requiere_autorizacion" bool [not null, default: false]
+  "nivel_complejidad" int4 [check: `(nivel_complejidad IS NULL) OR (nivel_complejidad = ANY (ARRAY[1, 2, 3, 4]))`]
+  "valor_upc_vigente" numeric(15,2) [check: `(valor_upc_vigente IS NULL) OR (valor_upc_vigente > (0)::numeric)`, note: 'Valor reconocido por ADRES (Giro Directo)']
+  "activo" bool [not null, default: true]
+  "fecha_creacion" date [not null, default: `CURRENT_DATE`]
+
+  Indexes {
+    requiere_autorizacion [type: btree, name: "idx_proc_auth"]
+    codigo_cups [type: btree, name: "idx_proc_cups"]
+    id_especialidad [type: btree, name: "idx_proc_esp"]
+    tipo_procedimiento [type: btree, name: "idx_proc_tipo"]
+  }
+  Note: 'Resolución 3512/2019 MSPS. Base para facturación a ADRES (Giro Directo).'
+}
+
+Table "misalud"."cita" {
+  "id_cita" int4 [pk, not null, increment]
+  "numero_cita" varchar(25) [unique, not null, note: 'Formato: MC-YYYYMMDD-XXXXXXXX']
+  "id_usuario" int4 [not null]
+  "id_medico" int4 [not null]
+  "id_ips" int4 [not null]
+  "id_especialidad" int4 [not null]
+  "id_procedimiento" int4
+  "fecha_cita" date [not null]
+  "hora_inicio" varchar(5) [not null, check: `(hora_inicio)::text ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'::text`]
+  "hora_fin" varchar(5) [not null, check: `(hora_fin)::text ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'::text`]
+  "tipo_atencion" varchar(15) [not null, check: `(tipo_atencion)::text = ANY ((ARRAY['PRESENCIAL'::character varying, 'TELEMEDICINA'::character varying, 'DOMICILIARIA'::character varying])::text[])`, default: 'PRESENCIAL']
+  "motivo_consulta" varchar(500) [not null]
+  "estado" varchar(15) [not null, check: `(estado)::text = ANY ((ARRAY['AGENDADA'::character varying, 'CONFIRMADA'::character varying, 'ATENDIDA'::character varying, 'CANCELADA'::character varying, 'NO_ASISTIO'::character varying])::text[])`, default: 'AGENDADA']
+  "canal_agendamiento" varchar(15) [not null, check: `(canal_agendamiento)::text = ANY ((ARRAY['APP'::character varying, 'WEB'::character varying, 'PRESENCIAL'::character varying, 'TELEFONO'::character varying])::text[])`]
+  "es_urgencia" bool [not null, default: false]
+  "id_cita_origen" int4 [note: 'FK reflexiva - citas de seguimiento o remisión']
+  "observaciones" varchar(1000)
+  "fecha_cancelacion" date
+  "motivo_cancelacion" varchar(500)
+  "activo" bool [not null, default: true]
+  "fecha_creacion" date [not null, default: `CURRENT_DATE`]
+  "usuario_creacion" varchar(50) [not null]
+
+  Checks {
+    `(hora_fin)::text > (hora_inicio)::text` [name: 'ck_cita_rango_hora']
+    `((fecha_cancelacion IS NULL) AND (motivo_cancelacion IS NULL)) OR ((fecha_cancelacion IS NOT NULL) AND (motivo_cancelacion IS NOT NULL))` [name: 'ck_cita_cancelacion']
+  }
+
+  Indexes {
+    estado [type: btree, name: "idx_cita_estado"]
+    fecha_cita [type: btree, name: "idx_cita_fecha"]
+    id_ips [type: btree, name: "idx_cita_ips"]
+    id_medico [type: btree, name: "idx_cita_med"]
+    (id_medico, fecha_cita) [type: btree, name: "idx_cita_med_fecha"]
+    numero_cita [type: btree, name: "idx_cita_num"]
+    id_usuario [type: btree, name: "idx_cita_usr"]
+    (id_usuario, fecha_cita) [type: btree, name: "idx_cita_usr_fecha"]
+  }
+  Note: 'TABLA TRANSACCIONAL DE ALTA CONCURRENCIA. Sugerido: PARTITION BY RANGE(fecha_cita).'
+}
+
+Table "misalud"."registro_clinico" {
+  "id_registro" int4 [pk, not null, increment]
+  "id_cita" int4 [unique, not null]
+  "id_usuario" int4 [not null]
+  "id_medico" int4 [not null]
+  "fecha_atencion" date [not null]
+  "motivo_consulta_ampliado" varchar(2000)
+  "anamnesis" text [note: 'DATO SENSIBLE - cifrado AES-256 a nivel aplicación']
+  "examen_fisico" text [note: 'DATO SENSIBLE - cifrado AES-256']
+  "diagnostico_principal" varchar(10) [not null, note: 'Código CIE-10']
+  "descripcion_diagnostico" varchar(500)
+  "plan_tratamiento" text [note: 'DATO SENSIBLE - cifrado AES-256']
+  "observaciones_medico" text
+  "requiere_hospitalizacion" bool [not null, default: false]
+  "requiere_remision" bool [not null, default: false]
+  "id_especialidad_remision" int4
+  "activo" bool [not null, default: true]
+  "fecha_creacion" date [not null, default: `CURRENT_DATE`]
+  "usuario_creacion" varchar(50) [not null]
+
+  Checks {
+    `(NOT requiere_remision) OR (requiere_remision AND (id_especialidad_remision IS NOT NULL))` [name: 'ck_rc_remision_esp']
+  }
+
+  Indexes {
+    diagnostico_principal [type: btree, name: "idx_rc_cie10"]
+    id_cita [type: btree, name: "idx_rc_cita"]
+    fecha_atencion [type: btree, name: "idx_rc_fecha"]
+    id_medico [type: btree, name: "idx_rc_med"]
+    id_usuario [type: btree, name: "idx_rc_usr"]
+  }
+  Note: 'HCE inmutable por ley (Res. 1995/1999). Solo INSERT, jamás DELETE ni UPDATE.'
+}
+
+Table "misalud"."autorizacion" {
+  "id_autorizacion" int4 [pk, not null, increment]
+  "numero_autorizacion" varchar(25) [unique, not null, note: 'Formato: AUTH-YYYYMMDD-XXXXXXXX']
+  "id_usuario" int4 [not null]
+  "id_procedimiento" int4 [not null]
+  "id_ips_solicitante" int4 [not null]
+  "id_medico_solicitante" int4 [not null]
+  "id_registro_clinico" int4
+  "justificacion_medica" text [not null, note: 'DATO SENSIBLE - cifrado AES-256']
+  "estado" varchar(15) [not null, check: `(estado)::text = ANY ((ARRAY['PENDIENTE'::character varying, 'APROBADA'::character varying, 'NEGADA'::character varying, 'APELADA'::character varying, 'VENCIDA'::character varying])::text[])`, default: 'PENDIENTE']
+  "fecha_solicitud" date [not null, default: `CURRENT_DATE`]
+  "fecha_respuesta" date
+  "fecha_vencimiento" date
+  "valor_autorizado" numeric(15,2) [check: `(valor_autorizado IS NULL) OR (valor_autorizado >= (0)::numeric)`, note: 'Monto que ADRES girará directamente a la IPS']
+  "observaciones_adres" varchar(1000)
+  "activo" bool [not null, default: true]
+  "usuario_creacion" varchar(50) [not null]
+
+  Checks {
+    `(fecha_respuesta IS NULL) OR (fecha_respuesta >= fecha_solicitud)` [name: 'ck_auth_fechas']
+  }
+
+  Indexes {
+    estado [type: btree, name: "idx_auth_estado"]
+    fecha_solicitud [type: btree, name: "idx_auth_fecha"]
+    id_ips_solicitante [type: btree, name: "idx_auth_ips"]
+    numero_autorizacion [type: btree, name: "idx_auth_num"]
+    id_usuario [type: btree, name: "idx_auth_usr"]
+    (id_usuario, estado) [type: btree, name: "idx_auth_usr_est"]
+  }
+  Note: 'SLA máximo 5 días hábiles según Resolución 3851/2016. Integra con sistema ADRES Giro Directo.'
+}
+
+Ref "fk_auth_ips":"misalud"."ips"."id_ips" < "misalud"."autorizacion"."id_ips_solicitante"
+
+Ref "fk_auth_med":"misalud"."medico"."id_medico" < "misalud"."autorizacion"."id_medico_solicitante"
+
+Ref "fk_auth_proc":"misalud"."procedimiento"."id_procedimiento" < "misalud"."autorizacion"."id_procedimiento"
+
+Ref "fk_auth_rc":"misalud"."registro_clinico"."id_registro" < "misalud"."autorizacion"."id_registro_clinico"
+
+Ref "fk_auth_usr":"misalud"."usuario"."id_usuario" < "misalud"."autorizacion"."id_usuario"
+
+Ref "fk_cita_esp":"misalud"."especialidad"."id_especialidad" < "misalud"."cita"."id_especialidad"
+
+Ref "fk_cita_ips":"misalud"."ips"."id_ips" < "misalud"."cita"."id_ips"
+
+Ref "fk_cita_med":"misalud"."medico"."id_medico" < "misalud"."cita"."id_medico"
+
+Ref "fk_cita_origen":"misalud"."cita"."id_cita" < "misalud"."cita"."id_cita_origen"
+
+Ref "fk_cita_proc":"misalud"."procedimiento"."id_procedimiento" < "misalud"."cita"."id_procedimiento"
+
+Ref "fk_cita_usr":"misalud"."usuario"."id_usuario" < "misalud"."cita"."id_usuario"
+
+Ref "fk_horario_ips":"misalud"."ips"."id_ips" < "misalud"."horario_medico"."id_ips"
+
+Ref "fk_horario_medesp":"misalud"."medico_especialidad"."id_medico_especialidad" < "misalud"."horario_medico"."id_medico_especialidad"
+
+Ref "fk_ips_municipio":"misalud"."municipio"."id_municipio" < "misalud"."ips"."id_municipio"
+
+Ref "fk_ipsesp_esp":"misalud"."especialidad"."id_especialidad" < "misalud"."ips_especialidad"."id_especialidad"
+
+Ref "fk_ipsesp_ips":"misalud"."ips"."id_ips" < "misalud"."ips_especialidad"."id_ips"
+
+Ref "fk_medico_tipo_doc":"misalud"."tipo_documento"."id_tipo_documento" < "misalud"."medico"."id_tipo_documento"
+
+Ref "fk_medesp_esp":"misalud"."especialidad"."id_especialidad" < "misalud"."medico_especialidad"."id_especialidad"
+
+Ref "fk_medesp_med":"misalud"."medico"."id_medico" < "misalud"."medico_especialidad"."id_medico"
+
+Ref "fk_municipio_depto":"misalud"."departamento"."id_departamento" < "misalud"."municipio"."id_departamento"
+
+Ref "fk_proc_esp":"misalud"."especialidad"."id_especialidad" < "misalud"."procedimiento"."id_especialidad"
+
+Ref "fk_rc_cita":"misalud"."cita"."id_cita" < "misalud"."registro_clinico"."id_cita"
+
+Ref "fk_rc_esp_remision":"misalud"."especialidad"."id_especialidad" < "misalud"."registro_clinico"."id_especialidad_remision"
+
+Ref "fk_rc_med":"misalud"."medico"."id_medico" < "misalud"."registro_clinico"."id_medico"
+
+Ref "fk_rc_usr":"misalud"."usuario"."id_usuario" < "misalud"."registro_clinico"."id_usuario"
+
+Ref "fk_usuario_eps":"misalud"."eps"."id_eps" < "misalud"."usuario"."id_eps_origen"
+
+Ref "fk_usuario_municipio":"misalud"."municipio"."id_municipio" < "misalud"."usuario"."id_municipio_residencia"
+
+Ref "fk_usuario_regimen":"misalud"."regimen"."id_regimen" < "misalud"."usuario"."id_regimen_actual"
+
+Ref "fk_usuario_tipo_doc":"misalud"."tipo_documento"."id_tipo_documento" < "misalud"."usuario"."id_tipo_documento"
