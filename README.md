@@ -44,7 +44,7 @@ Se eligió **PostgreSQL** como motor de base de datos y se desplegó un servidor
 ```
 Host:     dpg-d89mpdrbc2fs73fd0hn0-a.virginia-postgres.render.com
 Puerto:   5432
-Base de datos: mi_salud_db
+Base de datos: mi_salud
 Usuario:  mi_salud_db_read_only
 Password: 1234
 ```
@@ -55,26 +55,10 @@ Con el servidor activo, se ejecutó el script `DDL/raise_database.sql` para crea
 ### 4. Población de la base de datos con DML
 Se ejecutó `DML/populate_database.sql` para insertar datos en las tablas.
 
-### 5. Consultas SQL — Indicadores de negocio
-Se desarrollaron 10 consultas analíticas almacenadas en `DML/query_0N.sql`. Cada una responde a un objetivo funcional concreto:
-
-| Archivo | Tipo | Propósito principal |
-|---|---|---|
-| `query_01.sql` | Reporte | Ranking de EPS por afiliados y volumen de citas |
-| `query_02.sql` | Gestión clínica | Adultos mayores sin atención registrada en MiSalud |
-| `query_03.sql` | Cobertura | Cobertura territorial de IPS por departamento |
-| `query_04.sql` | Programación | Matriz IPS × día de la semana con disponibilidad y saturación |
-| `query_05.sql` | Talento humano | Distribución de médicos por especialidad |
-| `query_06.sql` | Transformación | Segmentación de afiliados por adopción de telemedicina |
-| `query_07.sql` | Calidad | Especialidades con citas pero sin autorizaciones |
-| `query_08.sql` | Auditoría | Citas atendidas sin HCE — incumplimiento Res. 1995/1999 y Res. 839/2017 |
-| `query_09.sql` | Inversión | IPS de alta capacidad habilitadas en las TOP-3 especialidades más demandadas |
-| `query_10.sql` | Gerencia | `VIEW v_dashboard_gerencial` — tablero KPI por departamento |
-
-### 6. Sincronización MER ↔ Base de datos
+### 5. Sincronización MER ↔ Base de datos
 Se utilizó la librería de Node.js **`db2dbml`** para conectarse a la base de datos desplegada y generar el código DBML directamente desde el esquema real, verificando así que el MER diseñado y la base de datos implementada estuviesen completamente sincronizados.
 
-### 7. Setup local con Docker
+### 6. Setup local con Docker
 Para facilitar la reproducibilidad, se añade soporte para levantar la base de datos en local sin tener PostgreSQL instalado. El `Dockerfile` construye una imagen que al arrancar ejecuta automáticamente el DDL y el DML mediante `docker-init.sh`. Consulta **`SETUP.md`** para los pasos detallados.
 
 ---
