@@ -64,5 +64,5 @@ Para facilitar la reproducibilidad, se añade soporte para levantar la base de d
 ---
 
 ## Nota sobre herramientas utilizadas
-- Se utilizó **Claude (IA de Anthropic)** para apoyar el formateo de los datos de inserción y la documentación de los scripts SQL.
+- Se utilizó **Claude (IA de Anthropic)** para inserciones de data dummy, apoyar el formateo de los datos y la documentación de los scripts SQL.
 - Como complemento se deja en `DCL/mi_salud_db_read_only.sql` las sentencias usadas para crear el usuario de lectura para quien este interesado. 
